@@ -1,0 +1,63 @@
+TEXT={(!(NEWLINE|s)~ANY)*}
+TEXTLINE={TEXT~NEWLINE}
+
+s=_{"\\"}
+plus=_{"+"}
+ms_cnt_ln={TEXT~s~NEWLINE}
+fld_hdr={ASCII_ALPHA~":"}
+
+//types of input
+info_field={fld_hdr~TEXTLINE~(plus~TEXTLINE)*}
+COMMENTLINE={("%"~(!"%")~(TEXTLINE)+)}
+MUSIC_CODE={ms_cnt_ln*~TEXTLINE}
+stylesheet_directives={"%%"~TEXTLINE}
+
+
+
+EMPTYLINE = { NEWLINE }
+
+file_structure={SOI~
+	file_header? ~ tune ~ (free_text ~ tune)* ~
+	EOI}
+    
+file_header={(info_field)+~stylesheet_directives?}
+
+free_text={(!EMPTYLINE~ANY)*~EMPTYLINE}
+tune= { tune_header ~ tune_body?}
+
+Xfld={"X:"~TEXTLINE}
+
+tune_header={ Xfld~info_field*}
+tune_body={ MUSIC_CODE}
+
+fld_inln={"["~fld_hdr~(!"]"~ANY)*~"]"}
+fld_multln={s~NEWLINE~info_field}
+
+
+note_letter = { ('a'..'g') | 'A'..'G' }
+octave = { ( "'" | ",")+ }
+pitch = { note_letter ~ octave ? }
+alteration = { "="| "_" | "^" |"^^" |"__"}
+
+rest = { "z" }
+multimeasure_rest = { "Z" ~ ASCII_DIGIT* }
+
+rhythm_digit_slash = { ASCII_DIGIT* ~ "/" ~ ASCII_DIGIT+ }
+rhythm_broken = {  ">"+ }
+rhythm = { ( rhythm_digit_slash | "/"+ | rhythm_broken) }
+tuplet_marker={"(" ~ ASCII_DIGIT+}
+
+note = { alteration? ~ (pitch|rest) ~ rhythm? ~ "-"? }
+
+beams = { tuplet_marker?~(note~note+ | note ~ ("`" ~ note)+)}
+
+bar_line={"|"}
+close_thin_thick_double_bar_line={"|]"}
+thin_double_bar_line={"||"}
+open_thick_thin_double_bar_line={"[|"}
+start_of_repeated_section={"|:"}
+end_of_repeated_section={":|"}
+start_end_of_two_repeated_sections={"::"}
+
+//order of constructs:
+//<grace notes>, <chord symbols>, <annotations>/<decorations> <accidentals>, <note>, <octave>, <note length>,
