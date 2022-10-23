@@ -48,8 +48,16 @@ rhythm = { ( rhythm_digit_slash | "/"+ | rhythm_broken) }
 tuplet_marker={"(" ~ ASCII_DIGIT+}
 
 note = { alteration? ~ (pitch|rest) ~ rhythm? ~ "-"? }
-
 beams = { tuplet_marker?~(note~note+ | note ~ ("`" ~ note)+)}
+
+//order of constructs:
+//<grace notes>, <chord symbols>, <annotations>/<decorations> <accidentals>, <note>, <octave>, <note length>,
+//chord order of constructs:  <note><accidental><type></bass>
+
+chord_type = { "minor"|"major"|"diminished"|"augmented"|"suspended"|"7"|"9"| ASCII_ALPHANUMERIC+ }
+chord_symbol = { alteration? ~ pitch ~ chord_type ~ ("/" ~ alteration? ~ pitch)?}
+
+annotation = { "\"" ~ ("^" | "_" | "<" | ">" | "@") ~ (!(NEWLINE| "\"")~ANY)* ~ "\"" }
 
 bar_line={"|"}
 close_thin_thick_double_bar_line={"|]"}
@@ -58,6 +66,12 @@ open_thick_thin_double_bar_line={"[|"}
 start_of_repeated_section={"|:"}
 end_of_repeated_section={":|"}
 start_end_of_two_repeated_sections={"::"}
+first_repeat_bar = { bar_line ~ ( " " ~ "[")?~ ASCII_DIGIT+}
+second_repeat_bar = { (end_of_repeated_section) ~ (" "~"[")? ~ ASCII_DIGIT+}
 
-//order of constructs:
-//<grace notes>, <chord symbols>, <annotations>/<decorations> <accidentals>, <note>, <octave>, <note length>,
+
+variant_ending_line = { "P:" ~ (ASCII_ALPHANUMERIC+ ~ (ASCII_DIGIT+)?) ~ ("."~(ASCII_ALPHANUMERIC+ ~ (ASCII_DIGIT+)?))*~NEWLINE}
+Nth_ending = { "["~ASCII_DIGIT~(","~ASCII_DIGIT)+ ~ (bar_line | thin_double_bar_line 
+| end_of_repeated_section | close_thin_thick_double_bar_line | open_thick_thin_double_bar_line ) }
+variant_ending = {variant_ending_line ~ Nth_ending+} // TBFinished: add music inside the bars
+
