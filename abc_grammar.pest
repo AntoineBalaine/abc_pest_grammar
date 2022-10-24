@@ -1,6 +1,6 @@
 TEXT={(!(NEWLINE|s)~ANY)*}
 TEXTLINE={TEXT~NEWLINE}
-
+WS=_{" "}
 s=_{"\\"}
 plus=_{"+"}
 ms_cnt_ln={TEXT~s~NEWLINE}
@@ -13,16 +13,13 @@ MUSIC_CODE={ms_cnt_ln*~TEXTLINE}
 stylesheet_directives={"%%"~TEXTLINE}
 
 
-
-EMPTYLINE = { NEWLINE }
-
 file_structure={SOI~
 	file_header? ~ tune ~ (free_text ~ tune)* ~
 	EOI}
     
 file_header={(info_field)+~stylesheet_directives?}
 
-free_text={(!EMPTYLINE~ANY)*~EMPTYLINE}
+free_text={(!NEWLINE~ANY)*~NEWLINE}
 tune= { tune_header ~ tune_body?}
 
 Xfld={"X:"~TEXTLINE}
@@ -33,32 +30,6 @@ tune_body={ MUSIC_CODE}
 fld_inln={"["~fld_hdr~(!"]"~ANY)*~"]"}
 fld_multln={s~NEWLINE~info_field}
 
-
-note_letter = { ('a'..'g') | 'A'..'G' }
-octave = { ( "'" | ",")+ }
-pitch = { note_letter ~ octave ? }
-alteration = { "="| "_" | "^" |"^^" |"__"}
-
-rest = { "z" }
-multimeasure_rest = { "Z" ~ ASCII_DIGIT* }
-
-rhythm_digit_slash = { ASCII_DIGIT* ~ "/" ~ ASCII_DIGIT+ }
-rhythm_broken = {  ">"+ }
-rhythm = { ( rhythm_digit_slash | "/"+ | rhythm_broken) }
-tuplet_marker={"(" ~ ASCII_DIGIT+}
-
-note = { alteration? ~ (pitch|rest) ~ rhythm? ~ "-"? }
-beams = { tuplet_marker?~(note~note+ | note ~ ("`" ~ note)+)}
-
-//order of constructs:
-//<grace notes>, <chord symbols>, <annotations>/<decorations> <accidentals>, <note>, <octave>, <note length>,
-//chord order of constructs:  <note><accidental><type></bass>
-
-chord_type = { "minor"|"major"|"diminished"|"augmented"|"suspended"|"7"|"9"| ASCII_ALPHANUMERIC+ }
-chord_symbol = { alteration? ~ pitch ~ chord_type ~ ("/" ~ alteration? ~ pitch)?}
-
-annotation = { "\"" ~ ("^" | "_" | "<" | ">" | "@") ~ (!(NEWLINE| "\"")~ANY)* ~ "\"" }
-
 bar_line={"|"}
 close_thin_thick_double_bar_line={"|]"}
 thin_double_bar_line={"||"}
@@ -66,12 +37,56 @@ open_thick_thin_double_bar_line={"[|"}
 start_of_repeated_section={"|:"}
 end_of_repeated_section={":|"}
 start_end_of_two_repeated_sections={"::"}
+generic_bar_line={bar_line|close_thin_thick_double_bar_line|thin_double_bar_line|open_thick_thin_double_bar_line|start_of_repeated_section|end_of_repeated_section|start_end_of_two_repeated_sections}
 first_repeat_bar = { bar_line ~ ( " " ~ "[")?~ ASCII_DIGIT+}
 second_repeat_bar = { (end_of_repeated_section) ~ (" "~"[")? ~ ASCII_DIGIT+}
-
-
 variant_ending_line = { "P:" ~ (ASCII_ALPHANUMERIC+ ~ (ASCII_DIGIT+)?) ~ ("."~(ASCII_ALPHANUMERIC+ ~ (ASCII_DIGIT+)?))*~NEWLINE}
 Nth_ending = { "["~ASCII_DIGIT~(","~ASCII_DIGIT)+ ~ (bar_line | thin_double_bar_line 
 | end_of_repeated_section | close_thin_thick_double_bar_line | open_thick_thin_double_bar_line ) }
 variant_ending = {variant_ending_line ~ Nth_ending+} // TBFinished: add music inside the bars
+
+
+note_letter = { ('a'..'g') | 'A'..'G' }
+octave = { ( "'" | ",")+ }
+alteration = { "="| "_" | "^" |"^^" |"__"|"♭"| "♮"| "♯"|"𝄫"| "𝄪"}
+pitch = { alteration? ~ note_letter ~ octave ? }
+
+rest = { "z" }
+multimeasure_rest = { "Z" ~ ASCII_DIGIT* }
+
+rhythm_digit_slash = { ASCII_DIGIT* ~ "/" ~ ASCII_DIGIT+ }
+rhythm_broken = {  ">"+ }
+rhythm = { ( rhythm_digit_slash | "/"+ | rhythm_broken) }
+tuplet_marker={"(" ~ ASCII_DIGIT+ ~ (("::"~ASCII_DIGIT+)|(":"~ASCII_DIGIT+~":"~ASCII_DIGIT+))?~WHITE_SPACE?}
+
+note = { (pitch|rest) ~ rhythm?}
+chord_note = { grace_note* ~ annotation? ~ decoration? ~ note }
+
+note_prefixes = _{ grace_note* ~ chord_symbol? ~ annotation? ~ decoration?}
+
+// shouldn't the chord-symbols go before the grace notes?
+note_cstrct = { note_prefixes? ~ note ~ "-"? }
+chord_cstrct = { note_prefixes? ~ "["~ chord_note+ ~"]" }
+nte_or_chrd = {note_cstrct|chord_cstrct}
+
+slur_cstrct = { "("~nte_or_chrd+~")"}
+
+// TODO : figure out where to put the beams vs. slur_cstrct vs tuplet_marker
+beams = { nte_or_chrd~nte_or_chrd+ | nte_or_chrd ~ ("`" ~ nte_or_chrd)+}
+
+grace_note = {"{" ~ "/"? ~  pitch+ ~ "}" }
+decoration_option={( "."|"~"|"H"|"L"|"M"|"O"|"P"|"S"|"T"|"u"|"v" ) }
+decoration = {decoration_option ~ & (decoration_option|note)}
+
+note_skip = {"*"}
+symbol = {"!trill!"|"!trill(!"|"!trill)!"|"!lowermordent!"|"!uppermordent!"|"!mordent!"|"!pralltriller!"|"!roll!"|"!turn!"|"!turnx!"|"!invertedturn!"|"!invertedturnx!"|"!arpeggio!"|"!>!"|"!accent!"|"!emphasis!"|"!fermata!"|"!invertedfermata!"|"!tenuto!"|"!0! - !5!"|"!+!"|"!plus!"|"!snap!"|"!slide!"|"!wedge!"|"!upbow!"|"!downbow!"|"!open!"|"!thumb!"|"!breath!"|"!pppp!"|"!ppp!"|"!pp!"|"!p!"|"!mp!"|"!mf!"|"!f!"|"!ff!"|"!fff!"|"!ffff!"|"!sfz!"|"!crescendo(!"|"!<(!"|"!crescendo)!"|"!<)!"|"!diminuendo(!"|"!>(!"|"!diminuendo)!"|"!>)!"|"!segno!"|"!coda!"|"!D.S.!"|"!D.C.!"|"!dacoda!"|"!dacapo!"|"!fine!"|"!shortphrase!"|"!mediumphrase!"|"!longphrase!"}
+symbol_line ={"s:" ~ (WS*~(symbol|chord_symbol|annotation|generic_bar_line|note_skip)~WS*)+ ~NEWLINE}
+symbol_redefinition_line = { "U:"~WS*~('h'..'w' | 'H'..'W')~WS*~"="~WS*~symbol~WS*~NEWLINE}
+
+
+//chord symbol order of constructs:  <note><accidental><type></bass>
+chord_type = { "minor"|"major"|"diminished"|"augmented"|"suspended"|"7"|"9"| ASCII_ALPHANUMERIC+ }
+chord_symbol = { "\""~note_letter ~ alteration? ~ chord_type? ~ ("/" ~ pitch)?~"\""}
+
+annotation = { "\"" ~ ("^" | "_" | "<" | ">" | "@") ~ (!(NEWLINE| "\"")~ANY)* ~ "\"" }
 
