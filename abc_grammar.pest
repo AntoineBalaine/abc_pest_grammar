@@ -1,7 +1,6 @@
-TEXT={(!(NEWLINE|s)~ANY)*}
-TEXTLINE={TEXT~NEWLINE}
+TEXT = {(!(NEWLINE|s)~ANY)*}
+TEXTLINE = { TEXT ~ NEWLINE }
 WHITESPACE = _{" "}
-WS = _{" "}
 s=_{"\\"}
 plus=_{"+"}
 ms_cnt_ln={TEXT~s~NEWLINE}
@@ -9,7 +8,7 @@ fld_hdr=@{ASCII_ALPHA~":"}
 
 //types of input
 info_field={fld_hdr~TEXTLINE~(plus~TEXTLINE)*}
-COMMENTLINE={("%"~(!"%")~TEXTLINE)}
+COMMENTLINE = {("%"~(!"%") ~ TEXTLINE)}
 MUSIC_CODE={ms_cnt_ln*~TEXTLINE}
 stylesheet_directives={"%%"~TEXTLINE}
 
@@ -22,9 +21,9 @@ file_header={(info_field)+~stylesheet_directives?}
 free_text={(!NEWLINE~ANY)* ~ NEWLINE}
 tune= { tune_header ~ tune_body?}
 
-Xfld={"X:"~TEXTLINE}
+Xfld = { "X:" ~ TEXTLINE }
 
-tune_header={ Xfld~info_field*}
+tune_header = { Xfld ~ info_field*}
 tune_body={ MUSIC_CODE}
 
 text_in_brckt = {(!"]"~ANY)*}
@@ -37,9 +36,9 @@ open_thick_thin_double_bar_line={"[|"}
 start_of_repeated_section={"|:"}
 end_of_repeated_section={":|"}
 start_end_of_two_repeated_sections={"::"}
-generic_bar_line={bar_line|close_thin_thick_double_bar_line|
-	thin_double_bar_line|open_thick_thin_double_bar_line|
-    start_of_repeated_section|end_of_repeated_section|
+generic_bar_line = { bar_line | close_thin_thick_double_bar_line |
+	thin_double_bar_line | open_thick_thin_double_bar_line |
+    start_of_repeated_section | end_of_repeated_section |
     start_end_of_two_repeated_sections}
 
 first_repeat_bar = ${ bar_line ~ ( WHITESPACE ~ "[")?~ ASCII_DIGIT+}
@@ -70,22 +69,27 @@ multimeasure_rest = ${ "Z" ~ ASCII_DIGIT* }
 
 rhythm_digit_slash = ${ ASCII_DIGIT* ~ "/" ~ ASCII_DIGIT+ }
 rhythm_broken = {  ">"+ }
-rhythm = ${ ( rhythm_digit_slash | "/"+ | rhythm_broken) }
+rhythm = ${ ( 
+	rhythm_digit_slash | 
+    "/"+ | 
+    rhythm_broken |
+    ASCII_DIGIT+) }
 tuplet_marker = ${"(" ~ ASCII_DIGIT+ ~ (
-		("::"~ASCII_DIGIT+) | (":"~ASCII_DIGIT+~":"~ASCII_DIGIT+)
-    )? ~ WHITE_SPACE? }
+		(":" ~ ASCII_DIGIT+){1,2} |
+        ("::"~ ASCII_DIGIT+)
+    )? ~ WHITE_SPACE*? }
 
 note = ${ (pitch|rest) ~ rhythm?}
 chord_note = ${ grace_note* ~ annotation? ~ decoration? ~ note }
 
-note_prefixes = _{ grace_note* ~ chord_symbol? ~ annotation? ~ decoration?}
+note_prefixes = _{ grace_note* ~ chord_symbol? ~ annotation? ~ tuplet_marker? ~ decoration?}
 
 // shouldn't the chord-symbols go before the grace notes?
 note_cstrct = ${ note_prefixes? ~ note ~ "-"? }
-chord_cstrct = ${ note_prefixes? ~ "["~ chord_note+ ~"]" }
+chord_cstrct = ${ note_prefixes? ~ "["~ chord_note+ ~"]" ~ rhythm? }
 nte_or_chrd = ${note_cstrct|chord_cstrct}
 
-slur_cstrct = { "("~(beam|nte_or_chrd|slur_cstrct)+~")"}
+slur_cstrct = { tuplet_marker? ~"("~(beam|nte_or_chrd|slur_cstrct)+~")"}
 
 // TODO : figure out where to put the beams vs. slur_cstrct vs tuplet_marker
 beam = { nte_or_chrd~nte_or_chrd+ | nte_or_chrd ~ ("`" ~ nte_or_chrd)+}
@@ -104,5 +108,16 @@ symbol_redefinition_line = { "U:"~('h'..'w' | 'H'..'W')~"="~symbol~NEWLINE}
 chord_type = { "minor"|"major"|"diminished"|"augmented"|"suspended"|"7"|"9"| ASCII_ALPHANUMERIC+ }
 chord_symbol = { "\""~note_letter ~ alteration? ~ chord_type? ~ ("/" ~ pitch)?~"\""}
 
-annotation = { "\"" ~ ("^" | "_" | "<" | ">" | "@") ~ ( !(NEWLINE | "\"") ~ ANY)* ~ "\"" }
+annotation = { "\"" ~ ("^" | "_" | "<" | ">" | "@") ~ 
+	( !(NEWLINE | "\"") ~ ANY)* ~ "\"" }
 
+lyric_syllable = @{ ASCII_ALPHA+ }
+HYPHEN = { "-" }
+UNDERSCORE = { "_" }
+TILDE = { "~" }
+verse_number = { ASCII_DIGIT ~ "." }
+lyric_text = { verse_number | lyric_syllable | 
+	bar_line | HYPHEN | UNDERSCORE | 
+    TILDE | note_skip }
+lyric_line = { "w:" ~ lyric_text+ ~ NEWLINE ~ 
+	( plus ~ ":" ~ lyric_text+ ~ NEWLINE )* }
