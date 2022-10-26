@@ -1,3 +1,4 @@
+//TODO : instead of using TEXTLINE everywhere, accomodate the possibility of slashes, brackets and "%" in stylesheet_directives, and other types that might be able to use it.
 TEXT = { ( !(NEWLINE | SLASH | "]" | "%") ~ ANY)* } 
 TEXTLINE = { TEXT ~ NEWLINE }
 WHITESPACE = _{" "}
@@ -14,17 +15,19 @@ TILDE = { "~" }
 info_field= { fld_hdr ~ TEXTLINE ~ ( plus ~ TEXTLINE )* }
 COMMENTLINE = {("%" ~ (!"%") ~ TEXTLINE)}
 stylesheet_directives = {"%%" ~ TEXTLINE}
-MUSIC_CODE = { (bar | music_content )* ~ ( NEWLINE | COMMENTLINE) }
+MUSIC_CODE = { (bar | music_content )+ ~ ("\\"|"$")? ~ ( COMMENTLINE |  NEWLINE) }
 
 // FILE STRUCTURE
 file_structure = {SOI~
-	file_header? ~ tune ~ ( TEXTLINE* ~ tune)* ~
+	file_header? ~ tune ~ (NEWLINE ~ tune)* ~ 
 	EOI}
 file_header = {( file_header_info_line | stylesheet_directives | COMMENTLINE)+ ~ NEWLINE}
-tune = { tune_header ~ tune_body? ~ (words_postbody ~ NEWLINE)*}
+tune = { tune_header ~ tune_body? ~ lyric_section? }
 tune_header = { (reference_number ~ (NEWLINE|COMMENTLINE)) ~ ( tune_header_info_line | COMMENTLINE)*}
-tune_body = { ( MUSIC_CODE | body_info_line | COMMENTLINE )* }
+tune_body = { ( MUSIC_CODE | body_info_line | COMMENTLINE | stylesheet_directives )* }
 
+lyric_line = { words_postbody ~ NEWLINE}
+lyric_section = { lyric_line+}
 // BAR LINES
 bar_line = {"|"}
 close_thin_thick_double_bar_line = {"|]"}
@@ -33,14 +36,15 @@ open_thick_thin_double_bar_line = {"[|"}
 start_of_repeated_section = {"|:"}
 end_of_repeated_section = {":|"}
 start_end_of_two_repeated_sections = {"::"}
-generic_bar_line = { thin_double_bar_line | bar_line | close_thin_thick_double_bar_line |
+generic_bar_line = { thin_double_bar_line | close_thin_thick_double_bar_line |  
 	 open_thick_thin_double_bar_line |
     start_of_repeated_section | end_of_repeated_section |
-    start_end_of_two_repeated_sections | first_repeat_bar | second_repeat_bar }
+    start_end_of_two_repeated_sections | first_repeat_bar | second_repeat_bar | bar_line }
 first_repeat_bar = ${ bar_line ~ ( WHITESPACE ~ "[")?~ ASCII_DIGIT+}
 second_repeat_bar = ${ (end_of_repeated_section) ~ (WHITESPACE ~ "[")? ~ ASCII_DIGIT+}
 // VARIANT ENDINGS
-Nth_ending = ${ "[" ~ ASCII_DIGIT ~ ("," ~ ASCII_DIGIT)+ ~ 
+nth_ending_number = @{ "[" ~ ASCII_DIGIT ~ ((","|"-") ~ ASCII_DIGIT)*}
+Nth_ending = { nth_ending_number ~ music_content ~
 		(bar_line | thin_double_bar_line 
 		| end_of_repeated_section | close_thin_thick_double_bar_line | open_thick_thin_double_bar_line ) 
 }
@@ -154,7 +158,7 @@ file_header_info_line = {(
   notes             |
   origin            |
   remark            |
-  rhythm            |
+  rhythm_line       |
   source            |
   transcription     |
   unit_note_length  |
@@ -235,6 +239,7 @@ music_content = {
     tuplet_marker |
     multimeasure_rest |
     measure_rest_invisible |
-    body_inline_info 
+    body_inline_info |
+    Nth_ending
   }
 bar = { music_content* ~ generic_bar_line}
