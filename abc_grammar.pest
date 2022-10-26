@@ -1,74 +1,64 @@
-TEXT = {(!(NEWLINE|s)~ANY)*}
+TEXT = { ( !(NEWLINE | SLASH)~ANY)* } 
 TEXTLINE = { TEXT ~ NEWLINE }
 WHITESPACE = _{" "}
-s=_{"\\"}
-plus=_{"+"}
-ms_cnt_ln={TEXT~s~NEWLINE}
-fld_hdr=@{ASCII_ALPHA~":"}
+SLASH = _{"\\"}
+plus = _{"+"}
+ms_cnt_ln = {TEXT~SLASH~NEWLINE}
+fld_hdr = @{ASCII_ALPHA~":"}
+note_skip = {"*"}
+HYPHEN = { "-" }
+UNDERSCORE = { "_" }
+TILDE = { "~" }
 
-//types of input
-info_field={fld_hdr~TEXTLINE~(plus~TEXTLINE)*}
+// TYPES OF LINES
+info_field= { fld_hdr ~ TEXTLINE ~ ( plus ~ TEXTLINE )* }
 COMMENTLINE = {("%"~(!"%") ~ TEXTLINE)}
-MUSIC_CODE={ms_cnt_ln*~TEXTLINE}
-stylesheet_directives={"%%"~TEXTLINE}
+stylesheet_directives = {"%%"~TEXTLINE}
+MUSIC_CODE = { "hello"}
 
-file_structure={SOI~
-	file_header? ~ NEWLINE ~ tune ~ (free_text ~ tune)* ~
+// FILE STRUCTURE
+file_structure = {SOI~
+	file_header? ~ NEWLINE ~ tune ~ ( TEXT ~ tune)* ~
 	EOI}
-    
-file_header={(info_field)+~stylesheet_directives?}
-
-free_text={(!NEWLINE~ANY)* ~ NEWLINE}
-tune= { tune_header ~ tune_body?}
-
-Xfld = { "X:" ~ TEXTLINE }
-
-tune_header = { Xfld ~ info_field*}
-tune_body={ MUSIC_CODE}
-
+file_header = {(file_header_info_line)+~stylesheet_directives?}
+tune = { tune_header ~ tune_body?}
+tune_header = { reference_number ~ tune_header_info_line*}
+tune_body = { ( MUSIC_CODE | body_info_line | COMMENTLINE )+ }
 text_in_brckt = {(!"]"~ANY)*}
-fld_inln={"["~fld_hdr~text_in_brckt~"]"}
+fld_inln = {"["~fld_hdr~text_in_brckt~"]"}
 
-bar_line={"|"}
-close_thin_thick_double_bar_line={"|]"}
-thin_double_bar_line={"||"}
-open_thick_thin_double_bar_line={"[|"}
-start_of_repeated_section={"|:"}
-end_of_repeated_section={":|"}
-start_end_of_two_repeated_sections={"::"}
+// BAR LINES
+bar_line = {"|"}
+close_thin_thick_double_bar_line = {"|]"}
+thin_double_bar_line = {"||"}
+open_thick_thin_double_bar_line = {"[|"}
+start_of_repeated_section = {"|:"}
+end_of_repeated_section = {":|"}
+start_end_of_two_repeated_sections = {"::"}
 generic_bar_line = { bar_line | close_thin_thick_double_bar_line |
 	thin_double_bar_line | open_thick_thin_double_bar_line |
     start_of_repeated_section | end_of_repeated_section |
-    start_end_of_two_repeated_sections}
-
+    start_end_of_two_repeated_sections | first_repeat_bar | second_repeat_bar }
 first_repeat_bar = ${ bar_line ~ ( WHITESPACE ~ "[")?~ ASCII_DIGIT+}
 second_repeat_bar = ${ (end_of_repeated_section) ~ (WHITESPACE~"[")? ~ ASCII_DIGIT+}
-
-section_name_repeats_count = {"."?~ ASCII_ALPHANUMERIC+ ~ ASCII_DIGIT*}
-parenthesized_repeats = {("."?~ "(" ~ (parenthesized_repeats | section_name_repeats_count)+ ~ ")"~ASCII_DIGIT*)}
-variant_ending_line = ${ "P:" ~ (
-	parenthesized_repeats+ | 
-    section_name_repeats_count+
-    )+
-	~ &NEWLINE}
-
+// VARIANT ENDINGS
 Nth_ending = ${ "[" ~ ASCII_DIGIT ~ ("," ~ ASCII_DIGIT)+ ~ 
 		(bar_line | thin_double_bar_line 
 		| end_of_repeated_section | close_thin_thick_double_bar_line | open_thick_thin_double_bar_line ) 
 }
-variant_ending = {variant_ending_line ~ Nth_ending+} // TBFinished: add music inside the bars
+variant_ending = { parts_line ~ &NEWLINE ~ Nth_ending+} // TBFinished: add music inside the bars
 
-
+// NOTES
 note_letter = { ('a'..'g') | 'A'..'G' }
 octave = { ( "'" | ",")+ }
 alteration = { "="| "_" | "^" |"^^" |"__"|"♭"| "♮"| "♯"|"𝄫"| "𝄪"}
 pitch = ${ alteration? ~ note_letter ~ octave ? }
-
 rest = { "z" }
 multimeasure_rest = ${ "Z" ~ ASCII_DIGIT* }
-
+measure_rest_invisible = {"X"}
+rest_symbol_invisible = {"x"}
 rhythm_digit_slash = ${ ASCII_DIGIT* ~ "/" ~ ASCII_DIGIT+ }
-rhythm_broken = {  ">"+ }
+rhythm_broken = {  ">"+ | "<"+}
 rhythm = ${ ( 
 	rhythm_digit_slash | 
     "/"+ | 
@@ -78,46 +68,163 @@ tuplet_marker = ${"(" ~ ASCII_DIGIT+ ~ (
 		(":" ~ ASCII_DIGIT+){1,2} |
         ("::"~ ASCII_DIGIT+)
     )? ~ WHITE_SPACE*? }
-
 note = ${ (pitch|rest) ~ rhythm?}
 chord_note = ${ grace_note* ~ annotation? ~ decoration? ~ note }
-
 note_prefixes = _{ grace_note* ~ chord_symbol? ~ annotation? ~ tuplet_marker? ~ decoration?}
-
 // shouldn't the chord-symbols go before the grace notes?
-note_cstrct = ${ note_prefixes? ~ note ~ "-"? }
+note_cstrct = ${ note_prefixes? ~ note ~ HYPHEN? }
 chord_cstrct = ${ note_prefixes? ~ "["~ chord_note+ ~"]" ~ rhythm? }
 nte_or_chrd = ${note_cstrct|chord_cstrct}
-
-slur_cstrct = { tuplet_marker? ~"("~(beam|nte_or_chrd|slur_cstrct)+~")"}
-
-// TODO : figure out where to put the beams vs. slur_cstrct vs tuplet_marker
+// since slurs can span multiple lines, they should be able to go over info_lines
+slur_cstrct = { tuplet_marker? ~ "(" ~ 
+  ( beam | nte_or_chrd | slur_cstrct | generic_bar_line | NEWLINE | fld_inln )+ ~ 
+  ")"}
 beam = { nte_or_chrd~nte_or_chrd+ | nte_or_chrd ~ ("`" ~ nte_or_chrd)+}
 
+// NOTE PREFIXES
 grace_note = {"{" ~ "/"? ~  pitch+ ~ "}" }
-decoration_option={( "."|"~"|"H"|"L"|"M"|"O"|"P"|"S"|"T"|"u"|"v" ) }
+decoration_option = {( "."|"~"|"H"|"L"|"M"|"O"|"P"|"S"|"T"|"u"|"v" ) }
 decoration = {decoration_option ~ & (decoration_option|note)}
-
-note_skip = {"*"}
+annotation = { "\"" ~ ("^" | "_" | "<" | ">" | "@") ~ 
+	( !(NEWLINE | "\"") ~ ANY)* ~ "\"" }
 symbol = {"!trill!"|"!trill(!"|"!trill)!"|"!lowermordent!"|"!uppermordent!"|"!mordent!"|"!pralltriller!"|"!roll!"|"!turn!"|"!turnx!"|"!invertedturn!"|"!invertedturnx!"|"!arpeggio!"|"!>!"|"!accent!"|"!emphasis!"|"!fermata!"|"!invertedfermata!"|"!tenuto!"|"!0! - !5!"|"!+!"|"!plus!"|"!snap!"|"!slide!"|"!wedge!"|"!upbow!"|"!downbow!"|"!open!"|"!thumb!"|"!breath!"|"!pppp!"|"!ppp!"|"!pp!"|"!p!"|"!mp!"|"!mf!"|"!f!"|"!ff!"|"!fff!"|"!ffff!"|"!sfz!"|"!crescendo(!"|"!<(!"|"!crescendo)!"|"!<)!"|"!diminuendo(!"|"!>(!"|"!diminuendo)!"|"!>)!"|"!segno!"|"!coda!"|"!D.S.!"|"!D.C.!"|"!dacoda!"|"!dacapo!"|"!fine!"|"!shortphrase!"|"!mediumphrase!"|"!longphrase!"}
-symbol_line ={"s:" ~ (symbol|chord_symbol|annotation|generic_bar_line|note_skip)+ ~NEWLINE}
-symbol_redefinition_line = { "U:"~('h'..'w' | 'H'..'W')~"="~symbol~NEWLINE}
 
-
-//chord symbol order of constructs:  <note><accidental><type></bass>
+// CHORD SYMBOLS order of constructs:  <note><accidental><type></bass>
 chord_type = { "minor"|"major"|"diminished"|"augmented"|"suspended"|"7"|"9"| ASCII_ALPHANUMERIC+ }
 chord_symbol = { "\""~note_letter ~ alteration? ~ chord_type? ~ ("/" ~ pitch)?~"\""}
 
-annotation = { "\"" ~ ("^" | "_" | "<" | ">" | "@") ~ 
-	( !(NEWLINE | "\"") ~ ANY)* ~ "\"" }
 
+// LYRICS
 lyric_syllable = @{ ASCII_ALPHA+ }
-HYPHEN = { "-" }
-UNDERSCORE = { "_" }
-TILDE = { "~" }
 verse_number = { ASCII_DIGIT ~ "." }
 lyric_text = { verse_number | lyric_syllable | 
 	bar_line | HYPHEN | UNDERSCORE | 
     TILDE | note_skip }
-lyric_line = { "w:" ~ lyric_text+ ~ NEWLINE ~ 
-	( plus ~ ":" ~ lyric_text+ ~ NEWLINE )* }
+
+// INFO LINES
+section_name = {"."?~ ASCII_ALPHANUMERIC+ ~ ASCII_DIGIT*}
+sections_group = {("."?~ "(" ~ (sections_group | section_name)+ ~ ")"~ASCII_DIGIT*)}
+part_line_content = ${ (
+	sections_group+ | 
+    section_name+
+    )+
+	}
+
+
+abc_version = {"%abc-"~ ASCII_DIGIT~ ("." ~ ASCII_DIGIT)* }
+area = {"A:" ~ TEXT}
+book = {"B:" ~ TEXT}
+composer = {"C:" ~ TEXT}
+discography = {"D:" ~ TEXT}
+file = {"F:" ~ TEXT}
+group = {"G:" ~ TEXT}
+history = {"H:" ~ TEXT}
+instruction = {"I:" ~ TEXT}
+key = {"K:" ~ TEXT}
+macros = {"m:" ~ TEXT}
+meter = {"M:" ~ TEXT}
+notes = {"N:" ~ TEXT}
+origin = {"O:" ~ TEXT}
+parts_line = { "P:" ~ part_line_content}
+reference_number = {"X:"~ ASCII_DIGIT+}
+remark = {"r:" ~ TEXT}
+rhythm_line = {"R:" ~ TEXT}
+source = {"S:" ~ TEXT}
+symbol_line ={"s:" ~ (symbol|chord_symbol|annotation|generic_bar_line|note_skip)+ }
+tempo ={"Q:" ~ TEXT}
+transcription = {"Z:" ~ TEXT}
+tune_title = {"T:" ~ TEXT}
+unit_note_length = {"L:" ~ TEXT}
+user_defined = { "U:" ~ ('h'..'w' | 'H'..'W') ~ "=" ~ symbol}
+voice ={"V:" ~ TEXT}
+words_line = { "w:" ~ lyric_text+ ~ NEWLINE ~ ( plus ~ ":" ~ lyric_text+ )* }
+words_postbody ={"W:" ~ TEXT}
+
+file_header_info_line = {(
+  abc_version       |
+  area              |
+  book              |
+  composer          |
+  discography       |
+  file              |
+  group             |
+  history           |
+  instruction       |
+  macros            |
+  meter             |
+  notes             |
+  origin            |
+  remark            |
+  rhythm            |
+  source            |
+  transcription     |
+  unit_note_length  |
+  user_defined      
+) ~ NEWLINE }
+
+
+tune_header_info_line = {(
+  abc_version       |
+  area              |
+  book              |
+  composer          |
+  discography       |
+  file              |
+  group             |
+  history           |
+  instruction       |
+  key               |
+  macros            |
+  meter             |
+  notes             |
+  origin            |
+  parts_line        |
+  reference_number  |
+  remark            |
+  rhythm_line       |
+  source            |
+  symbol_line       |
+  tempo             |
+  transcription     |
+  tune_title        |
+  unit_note_length  |
+  user_defined      |
+  voice             |
+  words_postbody    
+) ~ NEWLINE }
+
+body_info_line = {(
+  instruction       |
+  key               |
+  macros            |
+  meter             |
+  notes             |
+  parts_line        |
+  remark            |
+  rhythm_line       |
+  symbol_line       |
+  tempo             |
+  tune_title        |
+  unit_note_length  |
+  user_defined      |
+  voice             |
+  words_line    
+) ~ NEWLINE }
+
+body_inline_info = {"[" ~ (
+  instruction       |
+  key               |
+  macros            |
+  meter             |
+  notes             |
+  parts_line        |
+  remark            |
+  rhythm_line       |
+  symbol_line       |
+  tempo             |
+  tune_title        |
+  unit_note_length  |
+  user_defined      |
+  voice             |
+  words_line    
+) ~ "]"}
